@@ -1,14 +1,14 @@
 from __future__ import annotations
 from pathlib import Path
 from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay, PrecisionRecallDisplay
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, confusion_matrix, ConfusionMatrixDisplay, RocCurveDisplay, PrecisionRecallDisplay
 import matplotlib.pyplot as plt
 import pandas as pd
 FIG_DIR = Path("/content/drive/MyDrive/breast-cancer/figures")
 
 def get_results(model, name, X_train, X_test, y_train, y_test):
   y_train_pred = model.predict(X_train)
-  y_train_score = model.predict_proba(X_train)[:,1]
+  y_train_score = model.predict_proba(X_train)[:,1]   # 1 = malignant
   y_pred = model.predict(X_test)
   y_score = model.predict_proba(X_test)[:,1]
 
@@ -20,7 +20,10 @@ def get_results(model, name, X_train, X_test, y_train, y_test):
       "train_roc_auc": roc_auc_score(y_train, y_train_score),
       "test_roc_auc": roc_auc_score(y_test, y_score),
       "train_ap": average_precision_score(y_train, y_train_score),
-      "test_ap": average_precision_score(y_test, y_score)
+      "test_ap": average_precision_score(y_test, y_score),
+      "test_f1": f1_score(y_test, y_pred),
+      "test_recall": recall_score(y_test, y_pred),
+      "test_precision": precision_score(y_test, y_pred)
   }
 
 def plot_coef(name, features, coefficents):
@@ -40,23 +43,21 @@ def plot_coef(name, features, coefficents):
   plt.savefig(FIG_DIR / f"{name}_coef.png", dpi=300, bbox_inches="tight")
   plt.show()
 
-def evaluate_model(model_list, X_train, X_test, y_train, y_test, features, RESULTS_DIR):
+def evaluate_model(model_list, X_train, X_test, y_train, y_test, features, results_path=None):
   results = []
   for name, model in model_list:
     model.fit(X_train, y_train)
     if isinstance(model, GridSearchCV):
-      best_params = model.best_params_
       model = model.best_estimator_
-      results.append(get_results(model, f"{name}_{best_params}", X_train, X_test, y_train, y_test))
-    else:
-      results.append(get_results(model, name, X_train, X_test, y_train, y_test))
+
+    results.append(get_results(model, name, X_train, X_test, y_train, y_test))
 
     results_df = pd.DataFrame(results)
-    if RESULTS_DIR is not None:
-      results_df.to_csv(RESULTS_DIR, index=False)
+    if results_path is not None:
+      results_df.to_csv(results_path, index=False)
 
     # confusion matrix, ROC curve and precision-recall curves.
-    ConfusionMatrixDisplay.from_estimator(model, X_test, y_test, normalize="true")
+    ConfusionMatrixDisplay.from_estimator(model, X_test, y_test, normalize="true", display_labels=["benign", "malignant"], values_format=".1%")
     plt.title(f"{name} Confusion Matrix")
     plt.savefig(FIG_DIR / f"{name}_cm.png")
     plt.show()
